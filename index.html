@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>旅遊行程 | PWA</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f2f2f7;
+            --card-bg: #ffffff;
+            --text-primary: #1c1c1e;
+            --text-secondary: #8e8e93;
+            --accent: #007aff;
+            --danger: #ff3b30;
+            --safe-area-bottom: env(safe-area-inset-bottom, 20px);
+            --safe-area-top: env(safe-area-inset-top, 0px);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: pan-y;
+        }
+
+        .app-container {
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            min-height: 100vh;
+            background: var(--bg-color);
+            overflow-x: hidden;
+            padding-top: var(--safe-area-top);
+        }
+
+        /* Headers */
+        .header-bar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(242, 242, 247, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .header-bar h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .btn-text {
+            background: none;
+            color: var(--accent);
+            font-weight: 600;
+            padding: 8px 0;
+            border: none;
+            font-size: 17px;
+            cursor: pointer;
+        }
+
+        .btn-text:active {
+            opacity: 0.5;
+        }
+
+        /* Page Views */
+        .page-view {
+            display: none;
+            padding-bottom: calc(100px + var(--safe-area-bottom));
+        }
+
+        .page-view.active {
+            display: block;
+            animation: slideIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Cards & Lists */
+        .page-content {
+            padding: 16px;
+        }
+
+        .trip-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .trip-item {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            transition: transform 0.1s;
+            position: relative;
+        }
+
+        .trip-item:active {
+            transform: scale(0.98);
+        }
+
+        .trip-title {
+            font-size: 19px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .trip-meta {
+            font-size: 15px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+        }
+
+        .day-header {
+            font-weight: 700;
+            margin: 28px 0 16px;
+            color: var(--text-primary);
+            font-size: 20px;
+            letter-spacing: -0.3px;
+        }
+
+        /* Controls */
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 16px 20px;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active {
+            opacity: 0.7;
+        }
+
+        .btn-secondary {
+            background: #e5e5ea;
+            color: #000;
+        }
+
+        .btn-action {
+            color: #8e8e93;
+            background: #f2f2f7;
+            border: none;
+            font-size: 15px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .btn-action:active {
+            transform: scale(0.9);
+            background: #e5e5ea;
+        }
+
+        .btn-map {
+            background: #e5f1ff;
+            color: var(--accent);
+            border-radius: 10px;
+            padding: 6px 12px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        /* FAB */
+        .fab {
+            position: fixed;
+            bottom: calc(30px + var(--safe-area-bottom));
+            right: 24px;
+            width: 64px;
+            height: 64px;
+            border-radius: 32px;
+            background: var(--accent);
+            color: white;
+            font-size: 36px;
+            font-weight: 300;
+            border: none;
+            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 100;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .fab:active {
+            transform: scale(0.92);
+            box-shadow: 0 2px 10px rgba(0, 122, 255, 0.3);
+        }
+
+        /* Bottom Sheet Modals */
+        dialog {
+            margin: auto 0 0 center;
+            width: 100%;
+            max-width: 600px;
+            border-radius: 28px 28px 0 0;
+            padding: 16px 24px calc(24px + var(--safe-area-bottom)) 24px;
+            box-sizing: border-box;
+            border: none;
+            box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1);
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        .sheet-handle {
+            width: 44px;
+            height: 5px;
+            background: #d1d1d6;
+            border-radius: 3px;
+            margin: 0 auto 20px auto;
+        }
+
+        dialog h3 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 24px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            color: #3a3a3c;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 16px 16px;
+            border: 1px solid transparent;
+            background: #f2f2f7;
+            border-radius: 14px;
+            font-size: 17px;
+            box-sizing: border-box;
+            appearance: none;
+            -webkit-appearance: none;
+            outline: none;
+            transition: background 0.2s, border 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border: 1px solid var(--accent);
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+        }
+
+        /* Detail Elements */
+        .cost-badge {
+            background: #f2f2f7;
+            color: var(--text-primary);
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-left: auto;
+        }
+
+        .time-badge {
+            background: var(--accent);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            margin-right: 12px;
+            box-shadow: 0 2px 6px rgba(0, 122, 255, 0.2);
+        }
+
+        .note-card {
+            background: #f9f9f9;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            line-height: 1.4;
+            color: #3a3a3c;
+            margin-top: 14px;
+            border: 1px solid #efefef;
+        }
+
+        .place-image {
+            width: 100%;
+            border-radius: 14px;
+            margin-top: 14px;
+            object-fit: cover;
+            max-height: 240px;
+            background: #eee;
+        }
+
+        .error {
+            color: var(--danger);
+            font-size: 14px;
+            margin-bottom: 16px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 80px 20px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* Checklists */
+        .mini-checklist {
+            background: #f2f2f7;
+            padding: 14px;
+            border-radius: 14px;
+            margin-top: 14px;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 14px;
+            font-size: 17px;
+            font-weight: 500;
+        }
+
+        .checklist-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .checklist-item input[type="checkbox"] {
+            margin-right: 14px;
+            width: 22px;
+            height: 22px;
+            accent-color: var(--accent);
+            border-radius: 6px;
+        }
+
+        .checklist-item.completed span {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 列表頁 -->
+        <div id="view-trips" class="page-view active">
+            <div class="header-bar">
+                <h1>我的旅程</h1>
+            </div>
+            <div class="page-content">
+                <div id="offline-banner"
+                    style="display:none; background:#ffebd3; color:#ff9500; padding:12px; border-radius:12px; margin-bottom:20px; text-align:center; font-weight:bold; font-size: 15px;">
+                    ⚠️ 正在使用離線快取資料</div>
+                <div id="error-msg" class="error"></div>
+                <ul id="trip-list" class="trip-list">
+                    <li class="empty-state">載入中...</li>
+                </ul>
+            </div>
+            <button class="fab" onclick="document.getElementById('modal-trip').showModal();">＋</button>
+        </div>
+
+        <!-- 詳情頁 (單頁應用程式SPA) -->
+        <div id="view-detail" class="page-view">
+            <div class="header-bar">
+                <button class="btn-text" onclick="goBack()" style="padding-left:0;">◂ 返回</button>
+                <h2 id="detail-title"
+                    style="font-size:18px; position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; max-width:50%; overflow:hidden; text-overflow:ellipsis;">
+                </h2>
+                <button class="btn-text" onclick="showChart()" style="padding-right:0;">報表</button>
+            </div>
+
+            <div class="page-content">
+                <div id="budget-summary"
+                    style="font-size: 16px; margin-bottom: 12px; color: var(--text-secondary); font-weight: 600; text-align: center;">
+                </div>
+                <ul id="place-list" class="trip-list"></ul>
+            </div>
+            <button class="fab" onclick="openPlaceModal()">＋</button>
+        </div>
+    </div> <!-- app-container -->
+
+    <!-- 各式 Bottom Sheet Modals -->
+    <dialog id="modal-trip">
+        <div class="sheet-handle"></div>
+        <h3>新增旅程</h3>
+        <div class="form-group"><label>旅程名稱</label><input type="text" id="trip-title" placeholder="例如：京都賞楓之旅"></div>
+        <div class="form-group"><label>旅遊天數</label><input type="number" id="trip-days" value="5" min="1"
+                inputmode="numeric"></div>
+        <div style="display: flex; gap: 12px; margin-top: 30px;">
+            <button class="btn btn-secondary" style="flex:1;"
+                onclick="document.getElementById('modal-trip').close()">取消</button>
+            <button class="btn" style="flex:2;" onclick="submitTrip()">建立旅程</button>
+        </div>
+    </dialog>
+
+    <dialog id="modal-checklist">
+        <div class="sheet-handle"></div>
+        <h3>新增待辦事項</h3>
+        <div class="form-group"><label>待辦名稱</label><input type="text" id="checklist-title" placeholder="例如：換日幣"></div>
+        <div style="display: flex; gap: 12px; margin-top: 30px;">
+            <button class="btn btn-secondary" style="flex:1;"
+                onclick="document.getElementById('modal-checklist').close()">取消</button>
+            <button class="btn" style="flex:2;" onclick="submitChecklist()">建立待辦</button>
+        </div>
+    </dialog>
+
+    <dialog id="modal-place">
+        <div class="sheet-handle"></div>
+        <h3 id="modal-place-title">新增行程</h3>
+        <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex:1;"><label>第幾天？</label><input type="number" id="place-day" value="1"
+                    min="1" inputmode="numeric"></div>
+            <div class="form-group" style="flex:1.5;">
+                <label>時間(選填)</label>
+                <div style="display: flex; gap: 6px;">
+                    <select id="place-time-h" style="flex:1; padding-left:10px;">
+                        <option value="">時</option>
+                    </select>
+                    <span style="display:flex; align-items:center; font-weight:bold;">:</span>
+                    <select id="place-time-m" style="flex:1; padding-left:10px;">
+                        <option value="">分</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="form-group"><label>名稱</label><input type="text" id="place-name" placeholder="例如：清水寺"></div>
+
+        <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex:1;"><label>分類標籤</label>
+                <input type="text" id="place-category" list="cat-opts" value="📍 景點" placeholder="例如：📍 景點">
+                <datalist id="cat-opts">
+                    <option value="📍 景點"></option>
+                    <option value="🍽️ 美食"></option>
+                    <option value="🛏️ 住宿"></option>
+                    <option value="✈️ 交通"></option>
+                    <option value="🛍️ 購物"></option>
+                </datalist>
+            </div>
+            <div class="form-group" style="flex:1;"><label>花費 ($)</label><input type="number" id="place-cost"
+                    placeholder="留空" inputmode="numeric"></div>
+        </div>
+
+        <div class="form-group"><label>導航網址 (選填)</label><input type="url" id="place-url" placeholder="https://...">
+        </div>
+        <div class="form-group"><label>紀錄與筆記 (選填)</label><textarea id="place-note" rows="2"
+                placeholder="例如：記得買御守..."></textarea></div>
+        <div class="form-group"><label>附加照片 (選填)</label><input type="file" id="place-image" accept="image/*"
+                style="padding: 10px; background: transparent; border: 1.5px dashed #ccc;"></div>
+
+        <div style="display: flex; gap: 12px; margin-top: 30px;">
+            <button class="btn btn-secondary" style="flex:1;"
+                onclick="document.getElementById('modal-place').close()">取消</button>
+            <button class="btn" style="flex:2;" onclick="submitPlace()" id="btn-submit-place">儲存</button>
+        </div>
+    </dialog>
+
+    <dialog id="modal-chart">
+        <div class="sheet-handle"></div>
+        <h3>花費比例</h3>
+        <div style="position: relative; width: 100%; height: 260px; margin-bottom: 20px;"><canvas
+                id="costChart"></canvas></div>
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-chart').close()">關閉</button>
+    </dialog>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8001';
+        let currentTripId = null;
+        let currentPlacesData = [];
+        let currentEditPlaceId = null;
+        let currentChecklistPlaceId = null;
+        let chartInstance = null;
+
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+        // 點擊對話框外部自動關閉 (原生 Bottom Sheet 體驗)
+        document.querySelectorAll('dialog').forEach(dialog => {
+            dialog.addEventListener('click', (e) => {
+                const rect = dialog.getBoundingClientRect();
+                const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height
+                    && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+                if (!isInDialog) dialog.close();
+            });
+        });
+
+        // ==== Trip ====
+        async function fetchTrips() {
+            try {
+                const res = await fetch(`${API_BASE}/trips`);
+                if (!res.ok) throw new Error();
+                const trips = await res.json();
+                localStorage.setItem('cached_trips', JSON.stringify(trips));
+                document.getElementById('offline-banner').style.display = 'none';
+                renderTrips(trips);
+            } catch (err) {
+                const cached = localStorage.getItem('cached_trips');
+                if (cached) {
+                    renderTrips(JSON.parse(cached));
+                    document.getElementById('offline-banner').style.display = 'block';
+                } else {
+                    document.getElementById('error-msg').innerText = '無網路連線且無快取。';
+                }
+            }
+        }
+
+        function renderTrips(trips) {
+            document.getElementById('error-msg').innerText = '';
+            const list = document.getElementById('trip-list');
+            if (trips.length === 0) { list.innerHTML = '<li class="empty-state">✈️ <br><br> 您還沒有任何旅程計畫，<br>點擊右下角按鈕開始吧！</li>'; return; }
+            list.innerHTML = trips.map(trip => `
+                <li class="trip-item" onclick="viewTrip(${trip.id}, '${trip.title.replace(/'/g, "\\'")}')">
+                    <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                        <div>
+                            <div class="trip-title">${trip.title}</div>
+                            <div class="trip-meta">${trip.start_date} <span style="margin: 0 6px;">|</span> ${trip.total_days} 天</div>
+                        </div>
+                        <button class="btn-action" style="color: var(--danger); background: #ffeeec;" onclick="deleteTrip(event, ${trip.id})">🗑</button>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        async function submitTrip() {
+            const title = document.getElementById('trip-title').value.trim();
+            const days = parseInt(document.getElementById('trip-days').value);
+            if (!title) return alert('請輸入名稱');
+            if (isNaN(days) || days < 1) return alert('天數輸入錯誤');
+            try {
+                await fetch(`${API_BASE}/trips`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, start_date: new Date().toISOString().split('T')[0], total_days: days })
+                });
+                document.getElementById('trip-title').value = '';
+                document.getElementById('modal-trip').close();
+                fetchTrips();
+            } catch (e) { alert("連線失敗"); }
+        }
+
+        async function deleteTrip(event, id) {
+            event.stopPropagation();
+            if (!confirm('確定要刪除這筆旅程嗎？將連帶刪除所有內含資料！')) return;
+            try {
+                await fetch(`${API_BASE}/trips/${id}`, { method: 'DELETE' });
+                fetchTrips();
+            } catch (e) { alert("連線失敗"); }
+        }
+
+        // ==== Navigation ====
+        function viewTrip(id, title) {
+            currentTripId = id;
+            document.getElementById('view-trips').classList.remove('active');
+            document.getElementById('view-detail').classList.add('active');
+            document.getElementById('detail-title').innerText = title;
+            fetchPlaces();
+        }
+
+        function goBack() {
+            currentTripId = null;
+            document.getElementById('view-detail').classList.remove('active');
+            document.getElementById('view-trips').classList.add('active');
+            fetchTrips();
+        }
+
+        // ==== Places Details ====
+        async function fetchPlaces() {
+            if (!currentTripId) return;
+            try {
+                const res = await fetch(`${API_BASE}/trips/${currentTripId}/places`);
+                const places = await res.json();
+                localStorage.setItem(`cached_places_${currentTripId}`, JSON.stringify(places));
+                renderPlaces(places);
+            } catch (e) {
+                const cached = localStorage.getItem(`cached_places_${currentTripId}`);
+                if (cached) renderPlaces(JSON.parse(cached));
+            }
+        }
+
+        function renderPlaces(places) {
+            currentPlacesData = places;
+            const list = document.getElementById('place-list');
+            let totalCost = 0;
+            const grouped = {};
+
+            places.forEach(p => {
+                if (!grouped[p.day]) grouped[p.day] = [];
+                grouped[p.day].push(p);
+                if (p.cost) totalCost += p.cost;
+            });
+
+            document.getElementById('budget-summary').innerText = totalCost > 0 ? `💰 目前總花費：$${totalCost}` : '';
+            if (places.length === 0) { list.innerHTML = '<div class="empty-state">尚未安排任何行程卡片！</div>'; return; }
+
+            let html = '';
+            Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b)).forEach(day => {
+                html += `<div class="day-header">📍 第 ${day} 天</div>`;
+                grouped[day].forEach(p => {
+                    const timeBadge = p.scheduled_time ? `<span class="time-badge">${p.scheduled_time}</span>` : '';
+                    const mapBtn = p.map_url ? `<a href="${p.map_url}" target="_blank" class="btn-map" style="margin-right:8px;">🗺 前往導航</a>` : '';
+                    const costBadge = p.cost ? `<span class="cost-badge">$${p.cost}</span>` : '';
+                    const noteContent = p.note ? `<div class="note-card">📝 ${p.note}</div>` : '';
+                    const imgHtml = p.image_url ? `<img src="${API_BASE}${p.image_url}" class="place-image">` : '';
+
+                    let checkHtml = '';
+                    if (p.checklists && p.checklists.length > 0) {
+                        checkHtml = '<div class="mini-checklist">';
+                        p.checklists.forEach(c => {
+                            checkHtml += `
+                                <div class="checklist-item ${c.is_completed ? 'completed' : ''}">
+                                    <input type="checkbox" ${c.is_completed ? 'checked' : ''} onchange="toggleChecklist(${c.id}, '${c.title.replace(/'/g, "\\'")}', this.checked)">
+                                    <span style="flex-grow:1;">${c.title}</span>
+                                    <button class="btn-text" style="color:var(--danger); padding:0 8px;" onclick="deleteChecklist(${c.id})">刪除</button>
+                                </div>
+                            `;
+                        });
+                        checkHtml += '</div>';
+                    }
+
+                    html += `
+                    <li class="trip-item">
+                        <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                            <div style="flex-grow:1; max-width:85%;">
+                                <div class="trip-title" style="display:flex; align-items:center;">${timeBadge} ${p.name} ${costBadge}</div>
+                                <div class="trip-meta">${p.category}</div>
+                            </div>
+                            <!-- 側邊動作球球 -->
+                            <div style="display:flex; flex-direction: column; gap: 8px;">
+                                <button class="btn-action" onclick="openPlaceModal(${p.id})">✏️</button>
+                                <button class="btn-action" style="color:var(--accent); background:#e5f1ff;" onclick="openChecklistModal(${p.id})">☑️</button>
+                            </div>
+                        </div>
+                        
+                        ${noteContent}
+                        ${imgHtml}
+                        ${checkHtml}
+                        
+                        <div style="display:flex; justify-content: flex-end; margin-top: 14px; padding-top: 14px; border-top: 1px dashed #eee;">
+                            ${mapBtn}
+                            <button class="btn-text" style="color:var(--danger);" onclick="deletePlace(${p.id})">刪除此行程</button>
+                        </div>
+                    </li>`;
+                });
+            });
+            list.innerHTML = html;
+        }
+
+        function openPlaceModal(placeId = null) {
+            currentEditPlaceId = placeId;
+            const titleEl = document.getElementById('modal-place-title');
+            document.getElementById('place-image').value = '';
+
+            if (placeId) {
+                titleEl.innerText = "編輯行程";
+                const p = currentPlacesData.find(x => x.id === placeId);
+                document.getElementById('place-day').value = p.day;
+                if (p.scheduled_time && p.scheduled_time.includes(':')) {
+                    const [hh, mm] = p.scheduled_time.split(':');
+                    document.getElementById('place-time-h').value = hh;
+                    document.getElementById('place-time-m').value = mm;
+                } else {
+                    document.getElementById('place-time-h').value = '';
+                    document.getElementById('place-time-m').value = '';
+                }
+                document.getElementById('place-name').value = p.name;
+                document.getElementById('place-url').value = p.map_url || '';
+                document.getElementById('place-category').value = p.category;
+                document.getElementById('place-cost').value = p.cost || '';
+                document.getElementById('place-note').value = p.note || '';
+            } else {
+                titleEl.innerText = "新增行程";
+                document.getElementById('place-day').value = '1';
+                document.getElementById('place-time-h').value = '';
+                document.getElementById('place-time-m').value = '';
+                document.getElementById('place-name').value = '';
+                document.getElementById('place-url').value = '';
+                document.getElementById('place-category').value = '📍 景點';
+                document.getElementById('place-cost').value = '';
+                document.getElementById('place-note').value = '';
+            }
+            document.getElementById('modal-place').showModal();
+        }
+
+        async function submitPlace() {
+            const btn = document.getElementById('btn-submit-place');
+            btn.innerText = "儲存中..."; btn.disabled = true;
+
+            const day = document.getElementById('place-day').value;
+            const h = document.getElementById('place-time-h').value;
+            const m = document.getElementById('place-time-m').value;
+            const time = (h && m) ? `${h}:${m}` : null;
+
+            const name = document.getElementById('place-name').value.trim();
+            const mapUrl = document.getElementById('place-url').value.trim();
+            const cat = document.getElementById('place-category').value;
+            const costStr = document.getElementById('place-cost').value;
+            const note = document.getElementById('place-note').value;
+
+            if (!name) { btn.innerText = "儲存"; btn.disabled = false; return alert('請輸入景點名稱'); }
+
+            const payload = {
+                name, category: cat, day: parseInt(day) || 1,
+                cost: costStr ? parseInt(costStr) : null,
+                scheduled_time: time, map_url: mapUrl || null, note: note || null
+            };
+
+            let generatedPlaceId = currentEditPlaceId;
+
+            try {
+                if (currentEditPlaceId) {
+                    const res = await fetch(`${API_BASE}/places/${currentEditPlaceId}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error();
+                } else {
+                    const res = await fetch(`${API_BASE}/trips/${currentTripId}/places`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error();
+                    const created = await res.json();
+                    generatedPlaceId = created.id;
+                }
+
+                const fileInput = document.getElementById('place-image');
+                if (fileInput.files.length > 0 && generatedPlaceId) {
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    await fetch(`${API_BASE}/places/${generatedPlaceId}/image`, { method: 'POST', body: formData });
+                }
+
+                document.getElementById('modal-place').close();
+                fetchPlaces();
+            } catch (e) { alert("儲存失敗！"); }
+            btn.innerText = "儲存"; btn.disabled = false;
+        }
+
+        async function deletePlace(id) {
+            if (!confirm("確定刪除此行程？")) return;
+            try {
+                await fetch(`${API_BASE}/places/${id}`, { method: 'DELETE' });
+                fetchPlaces();
+            } catch (e) { alert("刪除失敗"); }
+        }
+
+        // ==== Checklists ====
+        function openChecklistModal(placeId) {
+            currentChecklistPlaceId = placeId;
+            document.getElementById('checklist-title').value = '';
+            document.getElementById('modal-checklist').showModal();
+        }
+
+        async function submitChecklist() {
+            const title = document.getElementById('checklist-title').value.trim();
+            if (!title || !currentChecklistPlaceId) return;
+            try {
+                await fetch(`${API_BASE}/places/${currentChecklistPlaceId}/checklists`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title })
+                });
+                document.getElementById('modal-checklist').close();
+                fetchPlaces();
+            } catch (e) { alert("連線失敗"); }
+        }
+
+        async function toggleChecklist(id, title, is_completed) {
+            try {
+                await fetch(`${API_BASE}/checklists/${id}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, is_completed })
+                });
+                fetchPlaces();
+            } catch (e) { alert("連線失敗"); }
+        }
+
+        async function deleteChecklist(id) {
+            try {
+                await fetch(`${API_BASE}/checklists/${id}`, { method: 'DELETE' });
+                fetchPlaces();
+            } catch (e) { }
+        }
+
+        // ==== Chart ====
+        function showChart() {
+            const modal = document.getElementById('modal-chart');
+            modal.showModal();
+            const ctx = document.getElementById('costChart').getContext('2d');
+
+            const cateCosts = {};
+            currentPlacesData.forEach(p => {
+                const c = p.category.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').trim() || '其他';
+                if (!cateCosts[c]) cateCosts[c] = 0;
+                cateCosts[c] += (p.cost || 0);
+            });
+
+            const labels = []; const data = [];
+            Object.keys(cateCosts).forEach(k => {
+                if (cateCosts[k] > 0) { labels.push(k); data.push(cateCosts[k]); }
+            });
+
+            if (chartInstance) chartInstance.destroy();
+            if (data.length === 0) { labels.push('無花費紀錄'); data.push(1); }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#ff3b30', '#ffc107', '#34c759', '#007aff', '#af52de', '#ff9500'],
+                        borderWidth: 0, hoverOffset: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        // Time Options
+        const tH = document.getElementById('place-time-h');
+        const tM = document.getElementById('place-time-m');
+        for (let h = 0; h < 24; h++) tH.add(new Option(h.toString().padStart(2, '0'), h.toString().padStart(2, '0')));
+        for (let m = 0; m < 60; m += 5) tM.add(new Option(m.toString().padStart(2, '0'), m.toString().padStart(2, '0')));
+
+        fetchTrips();
+    </script>
+</body>
+
+</html>
