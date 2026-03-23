@@ -101,6 +101,43 @@
             }
         }
 
+        .day-tabs {
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 12px 20px;
+            gap: 10px;
+            background: rgba(242, 242, 247, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 64px;
+            z-index: 9;
+        }
+
+        .day-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .day-tab {
+            background: #e5e5ea;
+            color: var(--text-primary);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .day-tab.active {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.05);
+        }
+
         /* Cards & Lists */
         .page-content {
             padding: 16px;
@@ -424,6 +461,8 @@
                 <button class="btn-text" onclick="showChart()" style="padding-right:0;">報表</button>
             </div>
 
+            <div id="day-tabs-container" class="day-tabs"></div>
+
             <div class="page-content">
                 <div id="budget-summary"
                     style="font-size: 16px; margin-bottom: 12px; color: var(--text-secondary); font-weight: 600; text-align: center;">
@@ -524,6 +563,8 @@
         let currentEditPlaceId = null;
         let currentChecklistPlaceId = null;
         let chartInstance = null;
+        let currentSelectedDay = 1;
+        let currentTripTotalDays = 1;
 
         if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
@@ -562,7 +603,7 @@
             const list = document.getElementById('trip-list');
             if (trips.length === 0) { list.innerHTML = '<li class="empty-state">✈️ <br><br> 您還沒有任何旅程計畫，<br>點擊右下角按鈕開始吧！</li>'; return; }
             list.innerHTML = trips.map(trip => `
-                <li class="trip-item" onclick="viewTrip(${trip.id}, '${trip.title.replace(/'/g, "\\'")}')">
+                <li class="trip-item" onclick="viewTrip(${trip.id}, '${trip.title.replace(/'/g, "\\'")}', ${trip.total_days})">
                     <div style="display:flex; justify-content: space-between; align-items:flex-start;">
                         <div>
                             <div class="trip-title">${trip.title}</div>
@@ -600,12 +641,31 @@
         }
 
         // ==== Navigation ====
-        function viewTrip(id, title) {
+        function viewTrip(id, title, totalDays) {
             currentTripId = id;
+            currentSelectedDay = 1;
+            currentTripTotalDays = totalDays;
+            
             document.getElementById('view-trips').classList.remove('active');
             document.getElementById('view-detail').classList.add('active');
             document.getElementById('detail-title').innerText = title;
+            
+            const tabsContainer = document.getElementById('day-tabs-container');
+            let tabsHtml = '';
+            for(let i=1; i<=totalDays; i++) {
+                tabsHtml += `<button class="day-tab ${i===1?'active':''}" onclick="selectDay(${i})">第 ${i} 天</button>`;
+            }
+            tabsContainer.innerHTML = tabsHtml;
+
             fetchPlaces();
+        }
+
+        function selectDay(day) {
+            currentSelectedDay = day;
+            const tabs = document.querySelectorAll('.day-tab');
+            tabs.forEach(t => t.classList.remove('active'));
+            if(tabs[day-1]) tabs[day-1].classList.add('active');
+            renderPlaces(currentPlacesData);
         }
 
         function goBack() {
@@ -633,66 +693,62 @@
             currentPlacesData = places;
             const list = document.getElementById('place-list');
             let totalCost = 0;
-            const grouped = {};
+            
+            places.forEach(p => { if (p.cost) totalCost += p.cost; });
+            document.getElementById('budget-summary').innerText = totalCost > 0 ? `💰 總行程目前花費：$${totalCost}` : '';
 
-            places.forEach(p => {
-                if (!grouped[p.day]) grouped[p.day] = [];
-                grouped[p.day].push(p);
-                if (p.cost) totalCost += p.cost;
-            });
-
-            document.getElementById('budget-summary').innerText = totalCost > 0 ? `💰 目前總花費：$${totalCost}` : '';
-            if (places.length === 0) { list.innerHTML = '<div class="empty-state">尚未安排任何行程卡片！</div>'; return; }
+            const dayPlaces = places.filter(p => parseInt(p.day) === currentSelectedDay);
+            
+            if (dayPlaces.length === 0) { list.innerHTML = `<div class="empty-state">第 ${currentSelectedDay} 天尚未安排任何行程卡片！</div>`; return; }
 
             let html = '';
-            Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b)).forEach(day => {
-                html += `<div class="day-header">📍 第 ${day} 天</div>`;
-                grouped[day].forEach(p => {
-                    const timeBadge = p.scheduled_time ? `<span class="time-badge">${p.scheduled_time}</span>` : '';
-                    const mapBtn = p.map_url ? `<a href="${p.map_url}" target="_blank" class="btn-map" style="margin-right:8px;">🗺 前往導航</a>` : '';
-                    const costBadge = p.cost ? `<span class="cost-badge">$${p.cost}</span>` : '';
-                    const noteContent = p.note ? `<div class="note-card">📝 ${p.note}</div>` : '';
-                    const imgHtml = p.image_url ? `<img src="${API_BASE}${p.image_url}" class="place-image">` : '';
+            dayPlaces.sort((a, b) => {
+                if(!a.scheduled_time) return 1; if(!b.scheduled_time) return -1;
+                return a.scheduled_time.localeCompare(b.scheduled_time);
+            }).forEach(p => {
+                const timeBadge = p.scheduled_time ? `<span class="time-badge">${p.scheduled_time}</span>` : '';
+                const mapBtn = p.map_url ? `<a href="${p.map_url}" target="_blank" class="btn-map" style="margin-right:8px;">🗺 前往導航</a>` : '';
+                const costBadge = p.cost ? `<span class="cost-badge">$${p.cost}</span>` : '';
+                const noteContent = p.note ? `<div class="note-card">📝 ${p.note}</div>` : '';
+                const imgHtml = p.image_url ? `<img src="${API_BASE}${p.image_url}" class="place-image">` : '';
 
-                    let checkHtml = '';
-                    if (p.checklists && p.checklists.length > 0) {
-                        checkHtml = '<div class="mini-checklist">';
-                        p.checklists.forEach(c => {
-                            checkHtml += `
-                                <div class="checklist-item ${c.is_completed ? 'completed' : ''}">
-                                    <input type="checkbox" ${c.is_completed ? 'checked' : ''} onchange="toggleChecklist(${c.id}, '${c.title.replace(/'/g, "\\'")}', this.checked)">
-                                    <span style="flex-grow:1;">${c.title}</span>
-                                    <button class="btn-text" style="color:var(--danger); padding:0 8px;" onclick="deleteChecklist(${c.id})">刪除</button>
-                                </div>
-                            `;
-                        });
-                        checkHtml += '</div>';
-                    }
+                let checkHtml = '';
+                if (p.checklists && p.checklists.length > 0) {
+                    checkHtml = '<div class="mini-checklist">';
+                    p.checklists.forEach(c => {
+                        checkHtml += `
+                            <div class="checklist-item ${c.is_completed ? 'completed' : ''}">
+                                <input type="checkbox" ${c.is_completed ? 'checked' : ''} onchange="toggleChecklist(${c.id}, '${c.title.replace(/'/g, "\\'")}', this.checked)">
+                                <span style="flex-grow:1;">${c.title}</span>
+                                <button class="btn-text" style="color:var(--danger); padding:0 8px;" onclick="deleteChecklist(${c.id})">刪除</button>
+                            </div>
+                        `;
+                    });
+                    checkHtml += '</div>';
+                }
 
-                    html += `
-                    <li class="trip-item">
-                        <div style="display:flex; justify-content: space-between; align-items:flex-start;">
-                            <div style="flex-grow:1; max-width:85%;">
-                                <div class="trip-title" style="display:flex; align-items:center;">${timeBadge} ${p.name} ${costBadge}</div>
-                                <div class="trip-meta">${p.category}</div>
-                            </div>
-                            <!-- 側邊動作球球 -->
-                            <div style="display:flex; flex-direction: column; gap: 8px;">
-                                <button class="btn-action" onclick="openPlaceModal(${p.id})">✏️</button>
-                                <button class="btn-action" style="color:var(--accent); background:#e5f1ff;" onclick="openChecklistModal(${p.id})">☑️</button>
-                            </div>
+                html += `
+                <li class="trip-item">
+                    <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                        <div style="flex-grow:1; max-width:85%;">
+                            <div class="trip-title" style="display:flex; align-items:center;">${timeBadge} ${p.name} ${costBadge}</div>
+                            <div class="trip-meta">${p.category}</div>
                         </div>
-                        
-                        ${noteContent}
-                        ${imgHtml}
-                        ${checkHtml}
-                        
-                        <div style="display:flex; justify-content: flex-end; margin-top: 14px; padding-top: 14px; border-top: 1px dashed #eee;">
-                            ${mapBtn}
-                            <button class="btn-text" style="color:var(--danger);" onclick="deletePlace(${p.id})">刪除此行程</button>
+                        <div style="display:flex; flex-direction: column; gap: 8px;">
+                            <button class="btn-action" onclick="openPlaceModal(${p.id})">✏️</button>
+                            <button class="btn-action" style="color:var(--accent); background:#e5f1ff;" onclick="openChecklistModal(${p.id})">☑️</button>
                         </div>
-                    </li>`;
-                });
+                    </div>
+                    
+                    ${noteContent}
+                    ${imgHtml}
+                    ${checkHtml}
+                    
+                    <div style="display:flex; justify-content: flex-end; margin-top: 14px; padding-top: 14px; border-top: 1px dashed #eee;">
+                        ${mapBtn}
+                        <button class="btn-text" style="color:var(--danger);" onclick="deletePlace(${p.id})">刪除此行程</button>
+                    </div>
+                </li>`;
             });
             list.innerHTML = html;
         }
