@@ -710,7 +710,9 @@
                 const mapBtn = p.map_url ? `<a href="${p.map_url}" target="_blank" class="btn-map" style="margin-right:8px;">🗺 前往導航</a>` : '';
                 const costBadge = p.cost ? `<span class="cost-badge">$${p.cost}</span>` : '';
                 const noteContent = p.note ? `<div class="note-card">📝 ${p.note}</div>` : '';
-                const imgHtml = p.image_url ? `<img src="${API_BASE}${p.image_url}" class="place-image">` : '';
+                
+                const finalImgUrl = p.image_url ? (p.image_url.startsWith('http') ? p.image_url : `${API_BASE}${p.image_url}`) : '';
+                const imgHtml = p.image_url ? `<img src="${finalImgUrl}" class="place-image">` : '';
 
                 let checkHtml = '';
                 if (p.checklists && p.checklists.length > 0) {
